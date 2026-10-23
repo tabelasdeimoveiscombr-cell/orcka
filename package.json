@@ -1,0 +1,44 @@
+{
+  "name": "orcka",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.8.1",
+  "engines": {
+    "node": ">=22 <23"
+  },
+  "scripts": {
+    "sync": "tsx src/jobs/sync.ts",
+    "sync:dry": "tsx src/jobs/sync.ts --dry-run",
+    "keepalive": "tsx src/jobs/keepalive.ts",
+    "cleanup": "tsx src/jobs/cleanup.ts",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1156.0",
+    "@google/genai": "^2.31.0",
+    "@supabase/supabase-js": "^2.118.0",
+    "dotenv": "^16.4.7",
+    "googleapis": "^188.0.0",
+    "p-limit": "^7.3.3",
+    "pino": "^9.6.0",
+    "sharp": "^0.35.5",
+    "zod": "^3.24.2",
+    "zod-to-json-schema": "^3.25.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.22.0",
+    "@types/node": "^22.13.10",
+    "eslint": "^9.22.0",
+    "globals": "^15.15.0",
+    "prettier": "^3.5.3",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.26.1",
+    "vitest": "^3.0.8"
+  }
+}

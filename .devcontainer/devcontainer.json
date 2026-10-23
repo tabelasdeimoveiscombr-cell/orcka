@@ -1,0 +1,6 @@
+{
+  "name": "Orcka worker",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm",
+  "postCreateCommand": "corepack enable && corepack prepare pnpm@10.8.1 --activate && pnpm install",
+  "remoteUser": "node"
+}
