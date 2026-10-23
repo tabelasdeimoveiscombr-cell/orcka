@@ -8,7 +8,7 @@ O modelo prioriza os dados das tabelas de construtoras/incorporadoras e as carac
 
 - Node.js 22 e pnpm 10.
 - Projeto Supabase com acesso ao SQL Editor.
-- Projeto Google Cloud com Drive API v3 habilitada e service account.
+- Projeto Google Cloud com Drive API v3 habilitada e cliente OAuth.
 - Bucket Cloudflare R2 e credenciais S3 do bucket.
 - Chave da API Gemini.
 
@@ -16,12 +16,16 @@ O modelo prioriza os dados das tabelas de construtoras/incorporadoras e as carac
 
 ### Google Drive
 
-1. Ative a Google Drive API no projeto Google Cloud e crie uma service account.
-2. Gere a chave JSON e guarde seu conteúdo como secret `GOOGLE_SERVICE_ACCOUNT_JSON`. O worker aceita JSON puro ou JSON codificado em base64.
-3. Compartilhe a pasta raiz do Drive com o `client_email` da service account como leitor.
-4. Cadastre o ID da pasta raiz em `DRIVE_ROOT_FOLDER_ID`.
+1. Ative a Google Drive API no projeto Google Cloud.
+2. Em Google Auth Platform, configure o app OAuth como **Externo** e adicione a conta que acessa o Drive como usuária de teste.
+3. Crie um cliente OAuth do tipo **Aplicativo para computador** e salve o JSON baixado em `.secrets/oauth-client.json`. Esse diretório é ignorado pelo Git.
+4. Execute `pnpm google:auth -- .secrets/oauth-client.json`, abra a URL exibida, autorize o escopo somente de leitura do Drive e cole no terminal a URL de retorno do navegador. O comando grava as credenciais em `.env.oauth` com permissão restrita e não imprime o refresh token.
+5. Cadastre `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` e `GOOGLE_OAUTH_REFRESH_TOKEN` como secrets do Codespaces e do Actions. Nunca envie o JSON ou o refresh token no chat.
+6. Cadastre o ID da pasta raiz em `DRIVE_ROOT_FOLDER_ID`.
 
-A árvore esperada tem construtoras no primeiro nível e empreendimentos no segundo. O inventário segue níveis inferiores, atalhos e paginação; itens na lixeira são ignorados. Docs são exportados como texto e Sheets como CSV.
+A conta Google autorizada precisa ter acesso legítimo à pasta compartilhada. O link da pasta sozinho não concede acesso. A árvore esperada tem construtoras no primeiro nível e empreendimentos no segundo. O inventário segue níveis inferiores, atalhos e paginação; itens na lixeira são ignorados. Docs são exportados como texto e Sheets como CSV.
+
+Enquanto o app OAuth estiver em **Teste**, o Google pode expirar refresh tokens após 7 dias. Isso serve para validar a integração, mas não é configuração permanente. Para automação contínua, será necessário publicar o app em produção; como `drive.readonly` é um escopo sensível, o Google pode exigir verificação OAuth. Não prometa disponibilidade contínua antes dessa etapa.
 
 ### Supabase
 
@@ -51,7 +55,9 @@ No Codespaces, cadastre credenciais em **Settings → Secrets and variables → 
 
 Secrets necessários:
 
-- `GOOGLE_SERVICE_ACCOUNT_JSON`
+- `GOOGLE_OAUTH_CLIENT_ID`
+- `GOOGLE_OAUTH_CLIENT_SECRET`
+- `GOOGLE_OAUTH_REFRESH_TOKEN`
 - `DRIVE_ROOT_FOLDER_ID`
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
@@ -68,6 +74,7 @@ Variáveis com defaults disponíveis: `R2_BUCKET`, `R2_PUBLIC_BASE_URL`, `GEMINI
 ```sh
 pnpm install --frozen-lockfile
 cp .env.example .env
+pnpm google:auth -- .secrets/oauth-client.json
 pnpm sync:dry
 ```
 

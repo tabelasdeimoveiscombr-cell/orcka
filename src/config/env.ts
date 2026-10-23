@@ -1,45 +1,8 @@
-import "dotenv/config";
+import { config as loadDotenv } from "dotenv";
 import { z } from "zod";
 
-const googleServiceAccountSchema = z
-  .string()
-  .min(1)
-  .transform((value, context) => {
-    let credentials: unknown;
-
-    try {
-      credentials = JSON.parse(value);
-    } catch {
-      try {
-        credentials = JSON.parse(Buffer.from(value, "base64").toString("utf8"));
-      } catch {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Deve conter um JSON válido ou seu conteúdo em base64.",
-        });
-        return z.NEVER;
-      }
-    }
-
-    const parsedCredentials = z
-      .object({
-        client_email: z.string().email(),
-        private_key: z.string().min(1),
-      })
-      .passthrough()
-      .safeParse(credentials);
-
-    if (!parsedCredentials.success) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message:
-          "A credencial deve incluir client_email e private_key válidos.",
-      });
-      return z.NEVER;
-    }
-
-    return parsedCredentials.data;
-  });
+loadDotenv({ path: ".env.oauth" });
+loadDotenv();
 
 const optionalUrlSchema = z.preprocess(
   (value) => (value === "" ? undefined : value),
@@ -47,7 +10,9 @@ const optionalUrlSchema = z.preprocess(
 );
 
 const environmentSchema = z.object({
-  GOOGLE_SERVICE_ACCOUNT_JSON: googleServiceAccountSchema,
+  GOOGLE_OAUTH_CLIENT_ID: z.string().min(1),
+  GOOGLE_OAUTH_CLIENT_SECRET: z.string().min(1),
+  GOOGLE_OAUTH_REFRESH_TOKEN: z.string().min(1),
   DRIVE_ROOT_FOLDER_ID: z.string().min(1),
   SUPABASE_URL: z.string().url(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),

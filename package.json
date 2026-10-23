@@ -10,6 +10,7 @@
   "scripts": {
     "sync": "tsx src/jobs/sync.ts",
     "sync:dry": "tsx src/jobs/sync.ts --dry-run",
+    "google:auth": "tsx src/jobs/google-auth.ts",
     "keepalive": "tsx src/jobs/keepalive.ts",
     "cleanup": "tsx src/jobs/cleanup.ts",
     "test": "vitest run --passWithNoTests",
