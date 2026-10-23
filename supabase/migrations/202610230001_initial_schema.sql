@@ -165,3 +165,6 @@ create policy midias_public_read on public.midias
 
 grant select on public.construtoras, public.empreendimentos, public.unidades, public.midias
   to anon, authenticated;
+grant all on public.construtoras, public.empreendimentos, public.arquivos_drive,
+  public.unidades, public.historico_precos, public.midias, public.execucoes_sync
+  to service_role;

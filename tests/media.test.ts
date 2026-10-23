@@ -16,7 +16,12 @@ describe("processAndStoreImage", () => {
       .toBuffer();
     const upload = vi.fn().mockResolvedValue(undefined);
 
-    const result = await processAndStoreImage(source, "project-id", "drive-id", upload);
+    const result = await processAndStoreImage(
+      source,
+      "project-id",
+      "drive-id",
+      upload,
+    );
 
     expect(result).toMatchObject({
       key: "empreendimentos/project-id/drive-id.webp",

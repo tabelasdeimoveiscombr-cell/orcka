@@ -58,7 +58,9 @@ export async function listDriveInventory(
 ): Promise<DriveInventory> {
   const entries: DriveInventoryEntry[] = [];
 
-  async function listChildren(parentId: string): Promise<z.infer<typeof driveFileSchema>[]> {
+  async function listChildren(
+    parentId: string,
+  ): Promise<z.infer<typeof driveFileSchema>[]> {
     const files: z.infer<typeof driveFileSchema>[] = [];
     let pageToken: string | undefined;
 
@@ -129,7 +131,9 @@ export async function listDriveInventory(
         companyDriveId: entryCompanyId,
         projectDriveId: entryProjectId,
         md5: file.md5Checksum ?? null,
-        modifiedTime: file.modifiedTime ?? null,
+        modifiedTime: file.modifiedTime
+          ? new Date(file.modifiedTime).toISOString()
+          : null,
         version: file.version ?? null,
         size: file.size === undefined ? null : Number(file.size),
       };

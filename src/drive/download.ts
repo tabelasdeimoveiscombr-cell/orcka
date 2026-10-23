@@ -13,7 +13,9 @@ async function toBuffer(value: unknown): Promise<Buffer> {
     Symbol.asyncIterator in value
   ) {
     const chunks: Buffer[] = [];
-    for await (const chunk of value as AsyncIterable<Buffer | Uint8Array | string>) {
+    for await (const chunk of value as AsyncIterable<
+      Buffer | Uint8Array | string
+    >) {
       chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
     }
     return Buffer.concat(chunks);
@@ -27,7 +29,8 @@ export async function downloadDriveFile(
   mimeType: string,
 ): Promise<{ buffer: Buffer; contentType: string }> {
   if (mimeType === googleDocMimeType || mimeType === googleSheetMimeType) {
-    const exportMimeType = mimeType === googleDocMimeType ? "text/plain" : "text/csv";
+    const exportMimeType =
+      mimeType === googleDocMimeType ? "text/plain" : "text/csv";
     const response = await drive.files.export(
       { fileId, mimeType: exportMimeType },
       { responseType: "arraybuffer" },

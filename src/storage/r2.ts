@@ -38,6 +38,11 @@ export async function deleteR2Objects(keys: string[]): Promise<void> {
       Bucket: env.R2_BUCKET,
       Delete: { Objects: batch.map((Key) => ({ Key })), Quiet: true },
     };
-    await r2.send(new DeleteObjectsCommand(input));
+    const result = await r2.send(new DeleteObjectsCommand(input));
+    if (result.Errors?.length) {
+      throw new Error(
+        `R2 não conseguiu remover ${result.Errors.length} objeto(s).`,
+      );
+    }
   }
 }

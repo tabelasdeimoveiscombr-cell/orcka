@@ -17,7 +17,11 @@ export type PdfGenerator = (input: {
 
 function isRateLimitError(error: unknown): boolean {
   if (typeof error !== "object" || error === null) return false;
-  const candidate = error as { status?: number; statusCode?: number; code?: number | string };
+  const candidate = error as {
+    status?: number;
+    statusCode?: number;
+    code?: number | string;
+  };
   return (
     candidate.status === 429 ||
     candidate.statusCode === 429 ||
@@ -72,7 +76,10 @@ export async function extractPdf(
       attempts: 3,
       shouldRetry: isRateLimitError,
       wait: async (milliseconds) => {
-        logger.warn({ delayMs: milliseconds }, "Gemini limitou a taxa; tentando novamente");
+        logger.warn(
+          { delayMs: milliseconds },
+          "Gemini limitou a taxa; tentando novamente",
+        );
         await new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
       },
     },

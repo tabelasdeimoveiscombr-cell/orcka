@@ -2,6 +2,12 @@ import { z } from "zod";
 
 const nullableText = z.string().nullable();
 const nullableNumber = z.number().finite().nullable();
+const nullableNonnegativeNumber = nullableNumber.refine(
+  (value) => value === null || value >= 0,
+);
+const nullableCount = nullableNumber.refine(
+  (value) => value === null || (Number.isInteger(value) && value >= 0),
+);
 const nullableObject = z.record(z.string(), z.unknown()).nullable();
 
 export const ownerExtractionSchema = z
@@ -23,24 +29,24 @@ export const ownerExtractionSchema = z
 
 export const unitExtractionSchema = z.object({
   identificacao: nullableText,
-  dormitorios: nullableNumber.refine((value) => value === null || Number.isInteger(value)),
-  suites: nullableNumber.refine((value) => value === null || Number.isInteger(value)),
-  vagas: nullableNumber.refine((value) => value === null || Number.isInteger(value)),
-  area_privativa: nullableNumber,
-  preco: nullableNumber,
+  dormitorios: nullableCount,
+  suites: nullableCount,
+  vagas: nullableCount,
+  area_privativa: nullableNonnegativeNumber,
+  preco: nullableNonnegativeNumber,
   condicoes_pagamento: z.record(z.string(), z.unknown()).nullable(),
   disponivel: z.boolean().nullable(),
   subtipo: nullableText.optional(),
   finalidade: nullableText.optional(),
   condicao: nullableText.optional(),
-  banheiros: nullableNumber.optional(),
-  lavabos: nullableNumber.optional(),
-  salas: nullableNumber.optional(),
-  area_total: nullableNumber.optional(),
-  preco_venda: nullableNumber.optional(),
-  preco_locacao: nullableNumber.optional(),
-  valor_iptu: nullableNumber.optional(),
-  valor_condominio: nullableNumber.optional(),
+  banheiros: nullableCount.optional(),
+  lavabos: nullableCount.optional(),
+  salas: nullableCount.optional(),
+  area_total: nullableNonnegativeNumber.optional(),
+  preco_venda: nullableNonnegativeNumber.optional(),
+  preco_locacao: nullableNonnegativeNumber.optional(),
+  valor_iptu: nullableNonnegativeNumber.optional(),
+  valor_condominio: nullableNonnegativeNumber.optional(),
   caracteristicas: z.array(z.string()).optional(),
   acabamentos: z.array(z.string()).optional(),
   documentacao: nullableObject.optional(),
@@ -59,7 +65,7 @@ export const pdfExtractionSchema = z.object({
     .enum(["apartamento", "casa_condominio", "comercial", "outro"])
     .nullable(),
   status_obra: nullableText,
-  previsao_entrega: nullableText,
+  previsao_entrega: z.string().date().nullable(),
   descricao: nullableText,
   dados_extras: z.record(z.string(), z.unknown()),
   subtipos: z.array(z.string()).optional(),
@@ -97,14 +103,18 @@ export function validatePdfExtraction(value: unknown): ValidatedPdfExtraction {
       reasons.add("Uma ou mais unidades vieram sem identificação.");
       return false;
     }
-    if (unit.preco === null || unit.preco <= 0) {
+    const price = unit.preco ?? unit.preco_venda ?? unit.preco_locacao ?? null;
+    if (price === null || price <= 0) {
       reasons.add("Há unidade sem preço válido.");
     }
-    if (unit.area_privativa !== null && (unit.area_privativa <= 0 || unit.area_privativa > 2000)) {
+    const area = unit.area_privativa ?? unit.area_total ?? null;
+    if (area === null || area <= 0 || area > 2000) {
       reasons.add("Há área privativa ausente ou fora do intervalo esperado.");
     }
     if (unit.disponivel === null) {
-      reasons.add("A disponibilidade de uma ou mais unidades não foi informada.");
+      reasons.add(
+        "A disponibilidade de uma ou mais unidades não foi informada.",
+      );
     }
     return true;
   });

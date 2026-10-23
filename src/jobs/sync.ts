@@ -45,7 +45,9 @@ function selectOnlyEntries(
       (entry.depth === 1 || entry.depth === 2),
   );
   if (!selected) {
-    throw new Error("--only precisa apontar para uma construtora ou empreendimento inventariado.");
+    throw new Error(
+      "--only precisa apontar para uma construtora ou empreendimento inventariado.",
+    );
   }
   return entries.filter(
     (entry) =>
@@ -60,7 +62,9 @@ async function writeGitHubSummary(lines: string[]): Promise<void> {
   if (summaryPath) await appendFile(summaryPath, `${lines.join("\n")}\n`);
 }
 
-async function sendRebuildWebhook(payload: Record<string, unknown>): Promise<void> {
+async function sendRebuildWebhook(
+  payload: Record<string, unknown>,
+): Promise<void> {
   if (!env.REBUILD_WEBHOOK_URL) return;
   const response = await fetch(env.REBUILD_WEBHOOK_URL, {
     method: "POST",
@@ -82,7 +86,9 @@ export async function runSync(args = process.argv.slice(2)): Promise<void> {
     (argument) => argument !== "--dry-run" && !argument.startsWith("--only="),
   );
   if (unexpectedArgs.length > 0) {
-    throw new Error(`Argumentos não reconhecidos: ${unexpectedArgs.join(", ")}`);
+    throw new Error(
+      `Argumentos não reconhecidos: ${unexpectedArgs.join(", ")}`,
+    );
   }
 
   const counts = zeroCounts();
@@ -94,11 +100,16 @@ export async function runSync(args = process.argv.slice(2)): Promise<void> {
     const drive = createDriveClient();
     const inventory = await listDriveInventory(drive, env.DRIVE_ROOT_FOLDER_ID);
     const entries = selectOnlyEntries(inventory.entries, options.only);
-    const snapshot = await loadSyncSnapshot(supabase, options.only);
-    const diff = calculateInventoryDiff(entries, snapshot.files, snapshot.folders, {
-      complete: true,
-      only: options.only,
-    });
+    let snapshot = await loadSyncSnapshot(supabase, options.only);
+    const diff = calculateInventoryDiff(
+      entries,
+      snapshot.files,
+      snapshot.folders,
+      {
+        complete: true,
+        only: options.only,
+      },
+    );
 
     counts.criados = diff.created.length;
     counts.atualizados = diff.updated.length;
@@ -109,12 +120,18 @@ export async function runSync(args = process.argv.slice(2)): Promise<void> {
         ...diff.created.map((entry) => `CRIAR ${entry.path}`),
         ...diff.updated.map((entry) => `ATUALIZAR ${entry.path}`),
         ...diff.removedFiles.map((file) => `REMOVER ${file.caminho}`),
-        ...diff.removedFolders.map((folder) => `REMOVER PASTA ${folder.drive_folder_id}`),
+        ...diff.removedFolders.map(
+          (folder) => `REMOVER PASTA ${folder.drive_folder_id}`,
+        ),
         ...diff.unchanged.map((entry) => `IGNORAR ${entry.path}`),
       ];
       for (const item of plan) logger.info(item);
       logger.info(
-        { ...counts, safeToRemove: diff.safeToRemove, alertReason: diff.alertReason },
+        {
+          ...counts,
+          safeToRemove: diff.safeToRemove,
+          alertReason: diff.alertReason,
+        },
         "Plano dry-run; nenhuma gravação foi feita",
       );
       await writeGitHubSummary([
@@ -140,13 +157,18 @@ export async function runSync(args = process.argv.slice(2)): Promise<void> {
       return;
     }
 
-    const persisted = await persistInventory(supabase, entries, inventory.completedAt);
+    const persisted = await persistInventory(
+      supabase,
+      entries,
+      inventory.completedAt,
+    );
     counts.criados = Math.max(counts.criados, persisted.created);
     counts.atualizados = Math.max(counts.atualizados, persisted.updated);
     counts.ignorados = Math.max(counts.ignorados, persisted.ignored);
 
     counts.removidos = await applyRemovals(supabase, diff);
-    const pendingIds = await listPendingFileIds(supabase, snapshot.projectIds);
+    snapshot = await loadSyncSnapshot(supabase, options.only);
+    const pendingIds = await listPendingFileIds(supabase);
     const pendingEntries = entries.filter(
       (entry) => entry.kind === "file" && pendingIds.has(entry.driveFileId),
     );
@@ -188,10 +210,18 @@ export async function runSync(args = process.argv.slice(2)): Promise<void> {
       `- Unidades criadas/atualizadas: ${counts.unidades_criadas}/${counts.unidades_atualizadas}`,
       `- Erros isolados: ${counts.erros}`,
     ]);
-    await sendRebuildWebhook({ executionId, status: "concluido", counts });
+    try {
+      await sendRebuildWebhook({ executionId, status: "concluido", counts });
+    } catch (error) {
+      logger.error(
+        { err: error },
+        "Falha isolada ao acionar webhook de rebuild",
+      );
+    }
     logger.info({ executionId, counts }, "Sincronização concluída");
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Erro desconhecido";
+    const message =
+      error instanceof Error ? error.message : "Erro desconhecido";
     logger.error({ executionId, err: error }, "Falha crítica na sincronização");
     if (executionId) {
       try {
@@ -201,7 +231,10 @@ export async function runSync(args = process.argv.slice(2)): Promise<void> {
           summary: `Execução interrompida sem aplicar remoções: ${message}`,
         });
       } catch (finishError) {
-        logger.error({ executionId, err: finishError }, "Falha ao registrar execução interrompida");
+        logger.error(
+          { executionId, err: finishError },
+          "Falha ao registrar execução interrompida",
+        );
       }
     }
     await writeGitHubSummary([

@@ -25,6 +25,18 @@ async function softDeleteProjectRows(
   deletedAt: string,
 ): Promise<void> {
   if (projectIds.length === 0) return;
+  const { data: projectUnits, error: projectUnitsError } = await client
+    .from("unidades")
+    .select("id")
+    .in("empreendimento_id", projectIds);
+  throwOnError(projectUnitsError);
+  await updateInBatches(
+    client,
+    "historico_precos",
+    "unidade_id",
+    (projectUnits ?? []).map((unit) => unit.id),
+    { deleted_at: deletedAt },
+  );
   await updateInBatches(client, "empreendimentos", "id", projectIds, {
     deleted_at: deletedAt,
   });
@@ -34,10 +46,25 @@ async function softDeleteProjectRows(
   await updateInBatches(client, "midias", "empreendimento_id", projectIds, {
     deleted_at: deletedAt,
   });
-  await updateInBatches(client, "arquivos_drive", "empreendimento_id", projectIds, {
-    status: "removido",
-    deleted_at: deletedAt,
-  });
+  await updateInBatches(
+    client,
+    "proprietarios",
+    "empreendimento_id",
+    projectIds,
+    {
+      deleted_at: deletedAt,
+    },
+  );
+  await updateInBatches(
+    client,
+    "arquivos_drive",
+    "empreendimento_id",
+    projectIds,
+    {
+      status: "removido",
+      deleted_at: deletedAt,
+    },
+  );
 }
 
 export async function applyRemovals(
@@ -56,15 +83,29 @@ export async function applyRemovals(
 
   let projectRows: Array<{ id: string; drive_folder_id: string }> = [];
   if (removedCompanyIds.length > 0) {
-    const { data, error } = await client
-      .from("empreendimentos")
+    const { data: companyRows, error: companyError } = await client
+      .from("construtoras")
       .select("id,drive_folder_id")
-      .in("construtora_id", removedCompanyIds);
-    throwOnError(error);
-    projectRows = (data ?? []) as typeof projectRows;
-    await updateInBatches(client, "construtoras", "drive_folder_id", removedCompanyIds, {
-      deleted_at: deletedAt,
-    });
+      .in("drive_folder_id", removedCompanyIds);
+    throwOnError(companyError);
+    const companyIds = (companyRows ?? []).map((company) => company.id);
+    if (companyIds.length > 0) {
+      const { data, error } = await client
+        .from("empreendimentos")
+        .select("id,drive_folder_id")
+        .in("construtora_id", companyIds);
+      throwOnError(error);
+      projectRows = (data ?? []) as typeof projectRows;
+    }
+    await updateInBatches(
+      client,
+      "construtoras",
+      "drive_folder_id",
+      removedCompanyIds,
+      {
+        deleted_at: deletedAt,
+      },
+    );
   }
 
   const projectDriveIds = new Set([
@@ -78,21 +119,56 @@ export async function applyRemovals(
       .select("id")
       .in("drive_folder_id", removedProjectIds);
     throwOnError(error);
-    projectIds = [...new Set([...projectIds, ...(data ?? []).map((row) => row.id)])];
+    projectIds = [
+      ...new Set([...projectIds, ...(data ?? []).map((row) => row.id)]),
+    ];
   }
   await softDeleteProjectRows(client, projectIds, deletedAt);
 
   const removedFileIds = diff.removedFiles.map((file) => file.drive_file_id);
-  await updateInBatches(client, "unidades", "origem_arquivo_id", removedFileIds, {
-    deleted_at: deletedAt,
-  });
+  const { data: fileUnits, error: fileUnitsError } = await client
+    .from("unidades")
+    .select("id")
+    .in("origem_arquivo_id", removedFileIds);
+  throwOnError(fileUnitsError);
+  await updateInBatches(
+    client,
+    "historico_precos",
+    "unidade_id",
+    (fileUnits ?? []).map((unit) => unit.id),
+    { deleted_at: deletedAt },
+  );
+  await updateInBatches(
+    client,
+    "unidades",
+    "origem_arquivo_id",
+    removedFileIds,
+    {
+      deleted_at: deletedAt,
+    },
+  );
   await updateInBatches(client, "midias", "origem_arquivo_id", removedFileIds, {
     deleted_at: deletedAt,
   });
-  await updateInBatches(client, "arquivos_drive", "drive_file_id", removedFileIds, {
-    status: "removido",
-    deleted_at: deletedAt,
-  });
+  await updateInBatches(
+    client,
+    "proprietarios",
+    "origem_arquivo_id",
+    removedFileIds,
+    {
+      deleted_at: deletedAt,
+    },
+  );
+  await updateInBatches(
+    client,
+    "arquivos_drive",
+    "drive_file_id",
+    removedFileIds,
+    {
+      status: "removido",
+      deleted_at: deletedAt,
+    },
+  );
 
   const removedFolderRows = [...projectDriveIds, ...removedCompanyIds];
   await updateInBatches(

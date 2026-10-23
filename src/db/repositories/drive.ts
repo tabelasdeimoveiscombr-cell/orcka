@@ -42,8 +42,7 @@ export async function persistInventory(
   if (companyRows.length > 0) {
     const { error } = await client
       .from("construtoras")
-      .upsert(companyRows, { onConflict: "drive_folder_id" })
-      ;
+      .upsert(companyRows, { onConflict: "drive_folder_id" });
     throwOnError(error);
   }
 
@@ -104,7 +103,9 @@ export async function persistInventory(
     for (const idBatch of chunks(ids, batchSize)) {
       const { data, error } = await client
         .from("arquivos_drive")
-        .select("drive_file_id,nome,mime_type,parent_id,caminho,md5,modified_time,version,tamanho")
+        .select(
+          "drive_file_id,nome,mime_type,parent_id,caminho,md5,modified_time,version,tamanho,status,deleted_at",
+        )
         .in("drive_file_id", idBatch);
       throwOnError(error);
       existingRows.push(...((data ?? []) as Array<Record<string, unknown>>));
@@ -135,6 +136,8 @@ export async function persistInventory(
       const previous = existingById.get(entry.driveFileId);
       const changed =
         !previous ||
+        previous.status === "removido" ||
+        previous.deleted_at !== null ||
         Object.entries(values).some(([key, value]) => previous[key] !== value);
 
       if (changed) {

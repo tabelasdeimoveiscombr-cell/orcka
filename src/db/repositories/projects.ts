@@ -53,13 +53,48 @@ export async function persistPdfExtraction(
     .eq("id", projectId);
   throwOnError(projectError);
 
-  const units = extraction.unidadesValidas.filter(
+  const units = (
+    data.tipo_documento === "tabela_precos" ? extraction.unidadesValidas : []
+  ).filter(
     (unit): unit is typeof unit & { identificacao: string } =>
       unit.identificacao !== null,
   );
   if (units.length === 0) return { unitsCreated: 0, unitsUpdated: 0 };
 
   const identifiers = units.map((unit) => unit.identificacao);
+  const { data: previousSourceUnits, error: previousSourceError } = await client
+    .from("unidades")
+    .select("id,identificacao")
+    .eq("empreendimento_id", projectId)
+    .eq("origem_arquivo_id", driveFileId)
+    .is("deleted_at", null);
+  throwOnError(previousSourceError);
+  const currentIdentifiers = new Set(identifiers);
+  const staleUnitIds = (previousSourceUnits ?? [])
+    .filter((unit) => !currentIdentifiers.has(unit.identificacao))
+    .map((unit) => unit.id);
+  if (staleUnitIds.length > 0) {
+    const { error: historyError } = await client
+      .from("historico_precos")
+      .update({ deleted_at: new Date().toISOString() })
+      .in("unidade_id", staleUnitIds);
+    throwOnError(historyError);
+    const staleIdentifiers = (previousSourceUnits ?? [])
+      .filter((unit) => !currentIdentifiers.has(unit.identificacao))
+      .map((unit) => unit.identificacao);
+    const { error: ownersError } = await client
+      .from("proprietarios")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("origem_arquivo_id", driveFileId)
+      .in("unidade_identificacao", staleIdentifiers);
+    throwOnError(ownersError);
+    const { error } = await client
+      .from("unidades")
+      .update({ deleted_at: new Date().toISOString() })
+      .in("id", staleUnitIds);
+    throwOnError(error);
+  }
+
   const { data: existingRows, error: existingError } = await client
     .from("unidades")
     .select("id,identificacao,preco")
@@ -77,7 +112,7 @@ export async function persistPdfExtraction(
     suites: unit.suites,
     vagas: unit.vagas,
     area_privativa: unit.area_privativa,
-    preco: unit.preco,
+    preco: unit.preco ?? unit.preco_venda ?? unit.preco_locacao ?? null,
     subtipo: unit.subtipo ?? null,
     finalidade: unit.finalidade ?? null,
     condicao: unit.condicao ?? null,
@@ -85,7 +120,7 @@ export async function persistPdfExtraction(
     lavabos: unit.lavabos ?? null,
     salas: unit.salas ?? null,
     area_total: unit.area_total ?? null,
-    preco_venda: unit.preco_venda ?? unit.preco,
+    preco_venda: unit.preco_venda ?? unit.preco ?? null,
     preco_locacao: unit.preco_locacao ?? null,
     valor_iptu: unit.valor_iptu ?? null,
     valor_condominio: unit.valor_condominio ?? null,
@@ -104,16 +139,22 @@ export async function persistPdfExtraction(
   throwOnError(upsertError);
 
   const priceHistory = units.flatMap((unit) => {
-    if (unit.preco === null) return [];
+    const newPrice =
+      unit.preco ?? unit.preco_venda ?? unit.preco_locacao ?? null;
+    if (newPrice === null) return [];
     const previous = existingByIdentification.get(unit.identificacao);
-    if (!previous || previous.preco === null || Number(previous.preco) === unit.preco) {
+    if (
+      !previous ||
+      previous.preco === null ||
+      Number(previous.preco) === newPrice
+    ) {
       return [];
     }
     return [
       {
         unidade_id: previous.id,
         preco_anterior: previous.preco,
-        preco_novo: unit.preco,
+        preco_novo: newPrice,
       },
     ];
   });

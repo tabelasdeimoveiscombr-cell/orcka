@@ -92,7 +92,9 @@ describe("listDriveInventory", () => {
 
   it("rejects a failed page instead of returning a partial inventory", async () => {
     const drive = {
-      files: { list: vi.fn().mockRejectedValue(new Error("Drive unavailable")) },
+      files: {
+        list: vi.fn().mockRejectedValue(new Error("Drive unavailable")),
+      },
     } as unknown as drive_v3.Drive;
 
     await expect(listDriveInventory(drive, "root")).rejects.toThrow(

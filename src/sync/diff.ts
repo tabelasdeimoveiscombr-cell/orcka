@@ -17,6 +17,7 @@ export interface PreviousDriveFile {
 export interface PreviousDriveFolder {
   drive_folder_id: string;
   depth: 1 | 2;
+  company_drive_folder_id?: string | null;
 }
 
 export interface InventoryDiff {
@@ -33,15 +34,19 @@ function sameFileMetadata(
   entry: DriveInventoryEntry,
   previous: PreviousDriveFile,
 ): boolean {
+  const previousModifiedTime = previous.modified_time
+    ? new Date(previous.modified_time).toISOString()
+    : null;
   return (
     entry.name === previous.nome &&
     entry.mimeType === previous.mime_type &&
     entry.parentId === previous.parent_id &&
     entry.path === previous.caminho &&
     entry.md5 === previous.md5 &&
-    entry.modifiedTime === previous.modified_time &&
+    entry.modifiedTime === previousModifiedTime &&
     entry.version === previous.version &&
-    entry.size === previous.tamanho &&
+    entry.size ===
+      (previous.tamanho === null ? null : Number(previous.tamanho)) &&
     previous.status !== "removido" &&
     !previous.deleted_at
   );
@@ -63,7 +68,8 @@ export function calculateInventoryDiff(
     (entry) => entry.kind === "file" && entry.projectDriveId !== null,
   );
   const currentFolders = currentEntries.filter(
-    (entry) => entry.kind === "folder" && (entry.depth === 1 || entry.depth === 2),
+    (entry) =>
+      entry.kind === "folder" && (entry.depth === 1 || entry.depth === 2),
   );
   const currentFilesById = new Map(
     currentFiles.map((entry) => [entry.driveFileId, entry]),
@@ -71,21 +77,24 @@ export function calculateInventoryDiff(
   const previousFilesById = new Map(
     previousFiles.map((file) => [file.drive_file_id, file]),
   );
-  const previousFoldersById = new Map(
-    previousFolders.map((folder) => [folder.drive_folder_id, folder]),
-  );
   const currentFolderIds = new Set(
     currentFolders.map((folder) => folder.driveFileId),
   );
-  const previousFolderCount = previousFiles.length;
+  const scopedPreviousFolders = previousFolders.filter(
+    (folder) =>
+      !options.only ||
+      folder.drive_folder_id === options.only ||
+      folder.company_drive_folder_id === options.only,
+  );
+  const previousFileCount = previousFiles.length;
   const currentFileCount = currentFiles.length;
   const belowSafetyThreshold =
-    previousFolderCount > 0 && currentFileCount / previousFolderCount < 0.7;
+    previousFileCount > 0 && currentFileCount / previousFileCount < 0.7;
   const safeToRemove = options.complete && !belowSafetyThreshold;
   const alertReason = !options.complete
     ? "O inventário do Drive não foi concluído."
     : belowSafetyThreshold
-      ? `Inventário contém ${currentFileCount} de ${previousFolderCount} arquivos anteriores (abaixo de 70%).`
+      ? `Inventário contém ${currentFileCount} de ${previousFileCount} arquivos anteriores (abaixo de 70%).`
       : null;
 
   const created: DriveInventoryEntry[] = [];
@@ -102,7 +111,7 @@ export function calculateInventoryDiff(
     ? previousFiles.filter((file) => !currentFilesById.has(file.drive_file_id))
     : [];
   const removedFolders = safeToRemove
-    ? previousFolders.filter(
+    ? scopedPreviousFolders.filter(
         (folder) => !currentFolderIds.has(folder.drive_folder_id),
       )
     : [];

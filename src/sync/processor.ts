@@ -36,7 +36,9 @@ function parseInfo(content: string, fileName: string): Record<string, string> {
       const parsed = infoSchema.safeParse(JSON.parse(content));
       if (parsed.success) {
         return Object.fromEntries(
-          Object.entries(parsed.data).filter((entry): entry is [string, string] => Boolean(entry[1])),
+          Object.entries(parsed.data).filter(
+            (entry): entry is [string, string] => Boolean(entry[1]),
+          ),
         );
       }
     } catch {
@@ -79,24 +81,38 @@ function isInfoFile(entry: DriveInventoryEntry): boolean {
 async function setFileStatus(
   client: SupabaseClient,
   driveFileId: string,
-  status: "processado" | "erro",
-  errorMessage: string | null,
+  status: "processado",
 ): Promise<void> {
-  const update =
-    status === "processado"
-      ? {
-          status,
-          processado_em: new Date().toISOString(),
-          ultimo_erro: null,
-        }
-      : {
-          status,
-          tentativas: 3,
-          ultimo_erro: errorMessage,
-        };
   const { error } = await client
     .from("arquivos_drive")
-    .update(update)
+    .update({
+      status,
+      processado_em: new Date().toISOString(),
+      ultimo_erro: null,
+    })
+    .eq("drive_file_id", driveFileId);
+  if (error) throw new Error(error.message);
+}
+
+async function recordFileFailure(
+  client: SupabaseClient,
+  driveFileId: string,
+  message: string,
+): Promise<void> {
+  const { data, error: readError } = await client
+    .from("arquivos_drive")
+    .select("tentativas")
+    .eq("drive_file_id", driveFileId)
+    .single();
+  if (readError) throw new Error(readError.message);
+  const attempts = Number(data.tentativas ?? 0) + 1;
+  const { error } = await client
+    .from("arquivos_drive")
+    .update({
+      tentativas: attempts,
+      status: attempts >= 3 ? "erro" : "pendente",
+      ultimo_erro: message,
+    })
     .eq("drive_file_id", driveFileId);
   if (error) throw new Error(error.message);
 }
@@ -111,7 +127,9 @@ export async function processPendingFiles(input: {
 }): Promise<ProcessCounts> {
   const limit = pLimit(input.concurrency);
   const files = input.entries.filter((entry) => entry.kind === "file");
-  const pdfFiles = files.filter((entry) => entry.mimeType === "application/pdf");
+  const pdfFiles = files.filter(
+    (entry) => entry.mimeType === "application/pdf",
+  );
   const allowedPdfs = new Set(
     pdfFiles.slice(0, input.maxPdfs).map((entry) => entry.driveFileId),
   );
@@ -134,7 +152,10 @@ export async function processPendingFiles(input: {
           counts.skipped += 1;
           return;
         }
-        if (entry.mimeType === "application/pdf" && !allowedPdfs.has(entry.driveFileId)) {
+        if (
+          entry.mimeType === "application/pdf" &&
+          !allowedPdfs.has(entry.driveFileId)
+        ) {
           counts.skipped += 1;
           return;
         }
@@ -183,25 +204,29 @@ export async function processPendingFiles(input: {
               height: image.height,
             });
           } else if (isInfoFile(entry)) {
-            const info = parseInfo(download.buffer.toString("utf8"), entry.name);
+            const info = parseInfo(
+              download.buffer.toString("utf8"),
+              entry.name,
+            );
             await updateProjectInfo(input.client, projectId, info);
           } else {
             counts.skipped += 1;
-            await setFileStatus(input.client, entry.driveFileId, "processado", null);
+            await setFileStatus(input.client, entry.driveFileId, "processado");
             return;
           }
 
-          await setFileStatus(input.client, entry.driveFileId, "processado", null);
+          await setFileStatus(input.client, entry.driveFileId, "processado");
           counts.processed += 1;
         } catch (error) {
           counts.failed += 1;
-          const message = error instanceof Error ? error.message : "Erro desconhecido";
+          const message =
+            error instanceof Error ? error.message : "Erro desconhecido";
           logger.error(
             { driveFileId: entry.driveFileId, path: entry.path, err: error },
             "Falha isolada ao processar arquivo do Drive",
           );
           try {
-            await setFileStatus(input.client, entry.driveFileId, "erro", message);
+            await recordFileFailure(input.client, entry.driveFileId, message);
           } catch (statusError) {
             logger.error(
               { driveFileId: entry.driveFileId, err: statusError },

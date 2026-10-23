@@ -1,5 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { PreviousDriveFile, PreviousDriveFolder } from "../../sync/diff.js";
+import type {
+  PreviousDriveFile,
+  PreviousDriveFolder,
+} from "../../sync/diff.js";
 
 export interface SyncSnapshot {
   files: PreviousDriveFile[];
@@ -28,7 +31,7 @@ export async function loadSyncSnapshot(
   client: SupabaseClient,
   only?: string,
 ): Promise<SyncSnapshot> {
-  const companies = await loadAll(async (from, to) => {
+  let companies = await loadAll(async (from, to) => {
     const query = client
       .from("construtoras")
       .select("id,drive_folder_id")
@@ -65,6 +68,29 @@ export async function loadSyncSnapshot(
       error,
     };
   });
+  if (only && !selectedCompany) {
+    const parentCompanyIds = [
+      ...new Set(projects.map((project) => project.construtora_id)),
+    ];
+    companies =
+      parentCompanyIds.length === 0
+        ? []
+        : await loadAll(async (from, to) => {
+            const { data, error } = await client
+              .from("construtoras")
+              .select("id,drive_folder_id")
+              .is("deleted_at", null)
+              .in("id", parentCompanyIds)
+              .range(from, to);
+            return {
+              data: data as Array<{
+                id: string;
+                drive_folder_id: string;
+              }> | null,
+              error,
+            };
+          });
+  }
   const projectIds = projects.map((project) => project.id);
 
   const files = await loadAll(async (from, to) => {
@@ -90,10 +116,14 @@ export async function loadSyncSnapshot(
       ...companies.map((company) => ({
         drive_folder_id: company.drive_folder_id,
         depth: 1 as const,
+        company_drive_folder_id: company.drive_folder_id,
       })),
       ...projects.map((project) => ({
         drive_folder_id: project.drive_folder_id,
         depth: 2 as const,
+        company_drive_folder_id:
+          companies.find((company) => company.id === project.construtora_id)
+            ?.drive_folder_id ?? null,
       })),
     ],
     projectIdsByDriveId: new Map(

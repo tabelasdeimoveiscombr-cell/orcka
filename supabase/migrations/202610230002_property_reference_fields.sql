@@ -69,3 +69,4 @@ alter table public.proprietarios enable row level security;
 create trigger proprietarios_set_updated_at
   before update on public.proprietarios
   for each row execute function public.set_updated_at();
+grant all on public.proprietarios to service_role;

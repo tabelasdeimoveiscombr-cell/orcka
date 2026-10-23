@@ -15,8 +15,8 @@
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\" \"README.md\" \".github/**/*.yml\" \".github/**/*.md\" \".devcontainer/**/*.json\" \"package.json\" \"tsconfig.json\" \"eslint.config.mjs\" \".prettierrc.json\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\" \"README.md\" \".github/**/*.yml\" \".github/**/*.md\" \".devcontainer/**/*.json\" \"package.json\" \"tsconfig.json\" \"eslint.config.mjs\" \".prettierrc.json\""
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1156.0",

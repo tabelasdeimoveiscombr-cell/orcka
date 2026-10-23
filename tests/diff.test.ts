@@ -84,17 +84,10 @@ describe("calculateInventoryDiff", () => {
     const files = Array.from({ length: 10 }, (_, index) =>
       previousFile({ drive_file_id: `old-${index}` }),
     );
-    const sparseInventory = calculateInventoryDiff(
-      [entry()],
-      files,
-      folders,
-    );
-    const partialInventory = calculateInventoryDiff(
-      [],
-      files,
-      folders,
-      { complete: false },
-    );
+    const sparseInventory = calculateInventoryDiff([entry()], files, folders);
+    const partialInventory = calculateInventoryDiff([], files, folders, {
+      complete: false,
+    });
 
     expect(sparseInventory.safeToRemove).toBe(false);
     expect(sparseInventory.removedFiles).toHaveLength(0);
@@ -128,8 +121,35 @@ describe("calculateInventoryDiff", () => {
     expect(diff.removedFiles.map((file) => file.drive_file_id)).toEqual([
       "removed-file",
     ]);
-    expect(diff.removedFolders.map((folder) => folder.drive_folder_id)).toEqual([
-      "missing-project",
-    ]);
+    expect(diff.removedFolders.map((folder) => folder.drive_folder_id)).toEqual(
+      ["missing-project"],
+    );
+  });
+
+  it("keeps parent company folders out of an --only project diff", () => {
+    const projectFolder = entry({
+      driveFileId: "project-1",
+      kind: "folder",
+      depth: 2,
+    });
+    const diff = calculateInventoryDiff(
+      [projectFolder],
+      [],
+      [
+        {
+          drive_folder_id: "company-1",
+          depth: 1,
+          company_drive_folder_id: "company-1",
+        },
+        {
+          drive_folder_id: "project-1",
+          depth: 2,
+          company_drive_folder_id: "company-1",
+        },
+      ],
+      { complete: true, only: "project-1" },
+    );
+
+    expect(diff.removedFolders).toEqual([]);
   });
 });

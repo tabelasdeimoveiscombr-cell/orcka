@@ -28,25 +28,41 @@ export async function processAndStoreImage(
 ): Promise<ProcessedImage> {
   const maxInputPixels = 80_000_000;
   const image = sharp(buffer, { limitInputPixels: maxInputPixels }).rotate();
-  const [{ data: imageBuffer, info: imageInfo }, { data: thumbnailBuffer, info: thumbnailInfo }] =
-    await Promise.all([
-      image
-        .clone()
-        .resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true })
-        .webp({ quality: 82 })
-        .toBuffer({ resolveWithObject: true }),
-      image
-        .clone()
-        .resize({ width: 400, height: 400, fit: "inside", withoutEnlargement: true })
-        .webp({ quality: 76 })
-        .toBuffer({ resolveWithObject: true }),
-    ]);
+  const [
+    { data: imageBuffer, info: imageInfo },
+    { data: thumbnailBuffer, info: thumbnailInfo },
+  ] = await Promise.all([
+    image
+      .clone()
+      .resize({
+        width: 1600,
+        height: 1600,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .webp({ quality: 82 })
+      .toBuffer({ resolveWithObject: true }),
+    image
+      .clone()
+      .resize({
+        width: 400,
+        height: 400,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .webp({ quality: 76 })
+      .toBuffer({ resolveWithObject: true }),
+  ]);
   const key = `empreendimentos/${projectId}/${driveFileId}.webp`;
   const thumbnailKey = `empreendimentos/${projectId}/thumbs/${driveFileId}.webp`;
 
   await Promise.all([
     upload({ key, body: imageBuffer, contentType: "image/webp" }),
-    upload({ key: thumbnailKey, body: thumbnailBuffer, contentType: "image/webp" }),
+    upload({
+      key: thumbnailKey,
+      body: thumbnailBuffer,
+      contentType: "image/webp",
+    }),
   ]);
 
   return {
